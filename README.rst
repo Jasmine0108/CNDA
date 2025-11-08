@@ -5,7 +5,6 @@ struct support and zero-copy NumPy interoperability.
 
 Basic Information
 -----------------
-- GitHub Repository: https://github.com/Linkenreefefedas/CNDA.git
 - About: A C++/Python library with minimal external dependencies that provides
   contiguous multi-dimensional arrays with clean indexing, zero-copy NumPy 
   interoperability, and support for both fundamental and composite (struct) 
@@ -28,10 +27,6 @@ CNDA was motivated by recurring difficulties in C++/Python numerical workflows:
 CNDA addresses these issues with a header-only, dependency-free core, explicit 
 interop policies, composite type support, and documented layout guarantees.
 
-Comparison: SimpleArray vs CNDA
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Please see `Analysis.md <https://github.com/Linkenreefefedas/CNDA/blob/main/Analysis.md>`_ 
-for a detailed comparison.
 
 Problem to Solve
 ----------------
