@@ -1,0 +1,52 @@
+name: Python CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    paths:
+      - 'python/cnda/**'
+      - 'python/tests/**'
+      - 'python/setup.py'
+      - 'python/pyproject.toml'
+
+jobs:
+  test-python:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: [3.10, 3.11]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Create virtual environment
+        run: python -m venv .venv
+
+      - name: Activate virtual environment & install dependencies
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          pip install -U pip
+          pip install pybind11 numpy pytest
+          # pip install .: 
+          # 1. This command will compile your c++ module
+          # 2. By using pybind11 to generate .so/.pyd files
+          # 3. Then install the package into the site-packages directory of virtual environment
+          # 4. Making it available for import in Python.
+          pip install -e .
+
+      - name: Run Python tests
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          pytest -v
+
+
