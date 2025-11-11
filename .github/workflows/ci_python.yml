@@ -7,8 +7,8 @@ on:
     paths:
       - 'python/cnda/**'
       - 'python/tests/**'
-      - 'python/setup.py'
-      - 'python/pyproject.toml'
+      - 'setup.py'
+      - 'pyproject.toml'
 
 jobs:
   test-python:
