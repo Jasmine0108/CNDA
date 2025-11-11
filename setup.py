@@ -4,7 +4,7 @@ import sys
 import setuptools
 
 class get_pybind_include(object):
-    """延遲導入 pybind11，直到安裝時"""
+    """Delay import of pybind11 until it is actually needed"""
     def __str__(self):
         import pybind11
         return pybind11.get_include()
@@ -12,10 +12,10 @@ class get_pybind_include(object):
 ext_modules = [
     Extension(
         'cnda',                                   # module name(Python import name)
-        ['python/cnda/bindings.cpp'],             # C++ 原始檔
+        ['python/cnda/bindings.cpp'],      
         include_dirs=[
-            get_pybind_include(),                 # pybind11 的 include 目錄
-            'python/cnda',                        # 你的 .hpp 所在位置
+            get_pybind_include(),                 # get include table of contents of pybind11
+            'include/cnda',                        # The location of .hpp files
         ],
         language='c++',
         extra_compile_args=['-std=c++17'],
