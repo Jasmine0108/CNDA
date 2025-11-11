@@ -11,7 +11,7 @@ class get_pybind_include(object):
 
 ext_modules = [
     Extension(
-        'cnda',                                   # module name(Python import name)
+        'cnda',                                   # module name (Python import name)
         ['python/cnda/bindings.cpp'],      
         include_dirs=[
             get_pybind_include(),                 # get include table of contents of pybind11
