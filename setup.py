@@ -1,7 +1,5 @@
-from setuptools import setup, Extension
+from setuptools import setup, Extension, find_packages
 from setuptools.command.build_ext import build_ext
-import sys
-import setuptools
 
 class get_pybind_include(object):
     """Delay import of pybind11 until it is actually needed"""
@@ -29,7 +27,6 @@ setup(
     ext_modules=ext_modules,
     cmdclass={'build_ext': build_ext},
     zip_safe=False,
-    packages=setuptools.find_packages(where='python'),
-    package_dir={'': 'python'},
+    packages=find_packages(),
     python_requires='>=3.10',
 )
