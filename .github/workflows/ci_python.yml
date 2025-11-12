@@ -1,0 +1,51 @@
+name: Python CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    paths:
+      - 'python/cnda/**'
+      - 'python/tests/**'
+      - 'setup.py'
+      - 'pyproject.toml'
+
+jobs:
+  test-python:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m venv .venv
+          # Windows: Scripts/activate
+          # Linux/macOS: bin/activate
+          PYTHON_EXEC=$(if [ -f ".venv/bin/python" ]; then echo ".venv/bin/python"; else echo ".venv/Scripts/python.exe"; fi)
+          $PYTHON_EXEC -m pip install --upgrade pip
+          $PYTHON_EXEC -m pip install pybind11 numpy pytest
+          $PYTHON_EXEC -m pip install -e .
+          # pip install .: 
+          # 1. This command will compile your c++ module
+          # 2. By using pybind11 to generate .so/.pyd files
+          # 3. Then install the package into the site-packages directory of virtual environment
+          # 4. Making it available for import in Python.
+
+      - name: Run Python tests
+        shell: bash
+        run: |
+          PYTHON_EXEC=$(if [ -f ".venv/bin/python" ]; then echo ".venv/bin/python"; else echo ".venv/Scripts/python.exe"; fi)
+          $PYTHON_EXEC -m pytest -v
+
