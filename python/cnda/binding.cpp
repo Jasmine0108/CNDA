@@ -3,9 +3,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>      // suport std::vector
 #include <cnda/contiguous_nd.hpp>  // include/cnda/
-import sys
-print(sys.path) 
-print(cnda.__file__) 
 
 //py is the abbrivation of pybind11
 namespace py = pybind11;
