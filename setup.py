@@ -13,7 +13,7 @@ ext_modules = [
         ['python/cnda/binding.cpp'],      
         include_dirs=[
             get_pybind_include(),                 # get include table of contents of pybind11
-            'include/cnda',                        # The location of .hpp files
+            'include',                        # The location of .hpp files
         ],
         language='c++',
         extra_compile_args=['-std=c++17'],
