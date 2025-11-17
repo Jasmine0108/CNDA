@@ -28,5 +28,5 @@ setup(
     cmdclass={'build_ext': build_ext},
     zip_safe=False,
     packages=find_packages(),
-    python_requires='>=3.10',
+    python_requires='>=3.9',
 )
