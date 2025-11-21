@@ -6,24 +6,25 @@ on:
   pull_request:
 
 jobs:
-  build-test:
-    name: ${{ matrix.os }} / ${{ matrix.build_type }}
+  build-test-cmake:
+    name: ${{ matrix.os }} / CMake${{ matrix.bounds_check && ' + BOUNDS_CHECK' || '' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest, macos-latest, windows-latest ]
         build_type: [ Release ]
+        bounds_check: [ false, true ]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Configure (CMake)
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DBUILD_TESTING=ON ${{ matrix.bounds_check && '-DCNDA_BOUNDS_CHECK=ON' || '' }}
 
       - name: Build
-        run: cmake --build build -j
+        run: cmake --build build --config ${{ matrix.build_type }} -j
 
-      - name: Test (CTest)
-        run: ctest --test-dir build --output-on-failure
+      - name: Test (CTest - C++ tests)
+        run: ctest --test-dir build --output-on-failure --build-config ${{ matrix.build_type }}
