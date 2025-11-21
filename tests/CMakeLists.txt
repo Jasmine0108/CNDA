@@ -7,7 +7,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(catch2)
 
-add_executable(test_sanity test_sanity.cpp)
+add_executable(test_sanity test_sanity.cpp test_dtypes.cpp test_view.cpp)
 target_link_libraries(test_sanity PRIVATE Catch2::Catch2WithMain cnda_headers)
 
 # 讓 CTest 能發現並執行
