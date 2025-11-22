@@ -23,34 +23,44 @@ void bind_contiguous_nd(py::module_ &m, const std::string &class_name) {
         .def("data", [](ContiguousND<T> &self) {
             return std::vector<T>(self.data(), self.data() + self.size());
         })
-        // To allow type int, list and tuple as indices
+        // To allow type int, list and tuple as indices (support arbitrary ndim)
         .def("__getitem__", [](ContiguousND<T>& self, py::object key) -> T {
             if (py::isinstance<py::int_>(key)) {
                 std::size_t i = key.cast<std::size_t>();
                 return self(i);
             }
-            else if (py::isinstance<py::tuple>(key) || py::isinstance<py::list>(key)) {
+            if (py::isinstance<py::tuple>(key) || py::isinstance<py::list>(key)) {
                 std::vector<std::size_t> idx = key.cast<std::vector<std::size_t>>();
-                if (idx.size() == 1) return self(idx[0]);
-                if (idx.size() == 2) return self(idx[0], idx[1]);
-                if (idx.size() == 3) return self(idx[0], idx[1], idx[2]);
-                throw std::runtime_error("Unsupported ndim");
+                const auto &sh = self.shape();
+                const auto &str = self.strides();
+                if (idx.size() != sh.size()) throw std::runtime_error("index: rank mismatch");
+                std::size_t off = 0;
+                for (std::size_t a = 0; a < idx.size(); ++a) {
+                    if (idx[a] >= sh[a]) throw std::out_of_range("index: out of bounds");
+                    off += idx[a] * str[a];
+                }
+                return self.data()[off];
             }
-            else {
-                throw std::runtime_error("Unsupported index type");
-            }
+
+            throw std::runtime_error("Unsupported index type");
         })
         .def("__setitem__", [](ContiguousND<T>& self, py::object key, T value) {
             if (py::isinstance<py::int_>(key)) {
                 self(key.cast<std::size_t>()) = value;
                 return;
             }
-            else if (py::isinstance<py::tuple>(key) || py::isinstance<py::list>(key)) {
+
+            if (py::isinstance<py::tuple>(key) || py::isinstance<py::list>(key)) {
                 std::vector<std::size_t> idx = key.cast<std::vector<std::size_t>>();
-                if (idx.size() == 1) self(idx[0]) = value;
-                else if (idx.size() == 2) self(idx[0], idx[1]) = value;
-                else if (idx.size() == 3) self(idx[0], idx[1], idx[2]) = value;
-                else throw std::runtime_error("Unsupported ndim");
+                const auto &sh = self.shape();
+                const auto &str = self.strides();
+                if (idx.size() != sh.size()) throw std::runtime_error("index: rank mismatch");
+                std::size_t off = 0;
+                for (std::size_t a = 0; a < idx.size(); ++a) {
+                    if (idx[a] >= sh[a]) throw std::out_of_range("index: out of bounds");
+                    off += idx[a] * str[a];
+                }
+                self.data()[off] = value;
                 return;
             }
             throw std::runtime_error("Unsupported index type");
