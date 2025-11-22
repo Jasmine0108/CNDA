@@ -18,6 +18,7 @@ void bind_contiguous_nd(py::module_ &m, const std::string &class_name) {
         .def("strides", &ContiguousND<T>::strides)
         .def("ndim", &ContiguousND<T>::ndim)
         .def("size", &ContiguousND<T>::size)
+        .def("index", (std::size_t (ContiguousND<T>::*)(const std::vector<std::size_t>&) const) &ContiguousND<T>::index)
         // Because python does not support pointer, we convert the data to vector
         .def("data", [](ContiguousND<T> &self) {
             return std::vector<T>(self.data(), self.data() + self.size());
