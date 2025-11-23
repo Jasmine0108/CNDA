@@ -71,6 +71,28 @@ public:
           }
           return off;
     }
+      
+    // Overload that accepts a std::vector for easier bindings from Python
+    std::size_t index(const std::vector<std::size_t>& idxs) const {
+      std::size_t off = 0;
+      #ifdef CNDA_BOUNDS_CHECK
+          if (idxs.size() != m_ndim) {
+            throw std::out_of_range("index: rank mismatch");
+          }
+      #endif
+          for (std::size_t axis = 0; axis < idxs.size(); ++axis) {
+      #ifdef CNDA_BOUNDS_CHECK
+            if (axis >= m_ndim) {
+              throw std::out_of_range("index: rank mismatch");
+            }
+            if (idxs[axis] >= m_shape[axis]) {
+              throw std::out_of_range("index: out of bounds");
+            }
+      #endif
+            off += idxs[axis] * m_strides[axis];
+          }
+          return off;
+        }
 
   // -------- operator() overload (N-dimensional) --------
   // Variadic template for N-dimensional access
