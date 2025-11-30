@@ -18,6 +18,7 @@ void bind_contiguous_nd(py::module_ &m, const std::string &class_name) {
         .def("strides", &ContiguousND<T>::strides)
         .def("ndim", &ContiguousND<T>::ndim)
         .def("size", &ContiguousND<T>::size)
+        .def("is_view", &ContiguousND<T>::is_view) // Whether this is a non-owning view
         .def("index", (std::size_t (ContiguousND<T>::*)(const std::vector<std::size_t>&) const) &ContiguousND<T>::index)
         // Because python does not support pointer, we convert the data to vector
         .def("data", [](ContiguousND<T> &self) {
@@ -67,10 +68,67 @@ void bind_contiguous_nd(py::module_ &m, const std::string &class_name) {
         });
 }
 
+// Templated helpers
+// These functions allocate a std::shared_ptr owner that holds the backing
+// std::vector<T> and then construct a non-owning ContiguousND<T> that
+// points into the owner's data. Using templates avoids duplicating code
+// for each supported numeric type.
+template <typename T>
+ContiguousND<T> make_view_t(std::vector<std::size_t> shape, std::vector<T> buf) {
+    // Create a shared owner for the buffer 
+    auto owner = std::make_shared<std::vector<T>>(std::move(buf));
+    // Construct a non-owning view pointing to the owner's data pointer.
+    return ContiguousND<T>(std::move(shape), owner->data(), owner);
+}
+
+template <typename T>
+py::tuple make_two_views_t(std::vector<std::size_t> shape1, std::vector<std::size_t> shape2, std::vector<T> buf) {
+    // Create a single shared owner and construct two views that share it.
+    auto owner = std::make_shared<std::vector<T>>(std::move(buf));
+    ContiguousND<T> v1(std::move(shape1), owner->data(), owner);
+    ContiguousND<T> v2(std::move(shape2), owner->data(), owner);
+    return py::make_tuple(v1, v2);
+}
+
+// The dispatchers accept a Python sequence for the buffer and a required
+// `dtype` string. We do not attempt silent type inference anymore; callers
+// must explicitly pass one of: "int32", "int64", "float", or "double".
+// This keeps behavior deterministic and avoids surprising defaults.
+static py::object make_view_dispatch(std::vector<std::size_t> shape, py::object buf_obj, const std::string &dtype) {
+    if (dtype.empty()) {
+        throw std::runtime_error("make_view: dtype is required (e.g. dtype='int32'|'int64'|'float'|'double')");
+    }
+
+    // Use explicit dtype to cast the Python sequence into the corresponding
+    // std::vector<T> and call the templated helper.
+    if (dtype == "int32") return py::cast(make_view_t<int32_t>(std::move(shape), buf_obj.cast<std::vector<int32_t>>()));
+    if (dtype == "int64") return py::cast(make_view_t<int64_t>(std::move(shape), buf_obj.cast<std::vector<int64_t>>()));
+    if (dtype == "float") return py::cast(make_view_t<float>(std::move(shape), buf_obj.cast<std::vector<float>>()));
+    if (dtype == "double") return py::cast(make_view_t<double>(std::move(shape), buf_obj.cast<std::vector<double>>()));
+    throw std::runtime_error("Unsupported dtype string");
+}
+
+static py::object make_two_views_dispatch(std::vector<std::size_t> shape1, std::vector<std::size_t> shape2, py::object buf_obj, const std::string &dtype) {
+    if (dtype.empty()) {
+        throw std::runtime_error("make_two_views: dtype is required (e.g. dtype='int32'|'int64'|'float'|'double')");
+    }
+
+    if (dtype == "int32") return make_two_views_t<int32_t>(std::move(shape1), std::move(shape2), buf_obj.cast<std::vector<int32_t>>());
+    if (dtype == "int64") return make_two_views_t<int64_t>(std::move(shape1), std::move(shape2), buf_obj.cast<std::vector<int64_t>>());
+    if (dtype == "float") return make_two_views_t<float>(std::move(shape1), std::move(shape2), buf_obj.cast<std::vector<float>>());
+    if (dtype == "double") return make_two_views_t<double>(std::move(shape1), std::move(shape2), buf_obj.cast<std::vector<double>>());
+    throw std::runtime_error("Unsupported dtype string");
+}
+
+
 PYBIND11_MODULE(cnda, m) {
     m.doc() = "Python bindings for ContiguousND C++ template class";
     bind_contiguous_nd<int32_t>(m, "ContiguousND_int32");
     bind_contiguous_nd<int64_t>(m, "ContiguousND_int64");
     bind_contiguous_nd<float>(m, "ContiguousND_float");
     bind_contiguous_nd<double>(m, "ContiguousND_double");
+    // Accept (shape, buf, dtype) where dtype is required and must be one of
+    // "int32", "int64", "float", or "double".
+    m.def("make_view", &make_view_dispatch, py::arg("shape"), py::arg("buf"), py::arg("dtype"));
+    m.def("make_two_views", &make_two_views_dispatch, py::arg("shape1"), py::arg("shape2"), py::arg("buf"), py::arg("dtype"));
 }
