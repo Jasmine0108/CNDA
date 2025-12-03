@@ -4,11 +4,6 @@ on:
   push:
     branches: [ main ]
   pull_request:
-    paths:
-      - 'python/cnda/**'
-      - 'tests/**/*.py'
-      - 'setup.py'
-      - 'pyproject.toml'
 
 jobs:
   test-python:
