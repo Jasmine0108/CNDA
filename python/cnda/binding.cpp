@@ -65,6 +65,46 @@ void bind_contiguous_nd(py::module_ &m, const std::string &class_name) {
                 return;
             }
             throw std::runtime_error("Unsupported index type");
+        })
+        // .at() method for bounds-checked access
+        .def("at", [](ContiguousND<T>& self, py::object key) -> T {
+            if (py::isinstance<py::tuple>(key) || py::isinstance<py::list>(key)) {
+                // Try to cast as signed integers first to detect negative indices
+                std::vector<py::ssize_t> signed_idx;
+                try {
+                    signed_idx = key.cast<std::vector<py::ssize_t>>();
+                } catch (...) {
+                    throw py::index_error("at(): invalid index type");
+                }
+                
+                const auto &sh = self.shape();
+                const auto &str = self.strides();
+                
+                // Rank check
+                if (signed_idx.size() != sh.size()) {
+                    throw py::index_error("at(): rank mismatch");
+                }
+                
+                // Check for negative indices and convert to unsigned
+                std::vector<std::size_t> idx(signed_idx.size());
+                for (std::size_t a = 0; a < signed_idx.size(); ++a) {
+                    if (signed_idx[a] < 0) {
+                        throw py::index_error("at(): negative indices not supported");
+                    }
+                    idx[a] = static_cast<std::size_t>(signed_idx[a]);
+                }
+                
+                // Bounds check for each dimension
+                std::size_t off = 0;
+                for (std::size_t a = 0; a < idx.size(); ++a) {
+                    if (idx[a] >= sh[a]) {
+                        throw py::index_error("at(): index out of bounds");
+                    }
+                    off += idx[a] * str[a];
+                }
+                return self.data()[off];
+            }
+            throw py::index_error("at(): requires tuple or list of indices");
         });
 }
 
@@ -85,9 +125,10 @@ template <typename T>
 py::tuple make_two_views_t(std::vector<std::size_t> shape1, std::vector<std::size_t> shape2, std::vector<T> buf) {
     // Create a single shared owner and construct two views that share it.
     auto owner = std::make_shared<std::vector<T>>(std::move(buf));
-    ContiguousND<T> v1(std::move(shape1), owner->data(), owner);
-    ContiguousND<T> v2(std::move(shape2), owner->data(), owner);
-    return py::make_tuple(v1, v2);
+    ContiguousND<T> v1(shape1, owner->data(), owner);
+    ContiguousND<T> v2(shape2, owner->data(), owner);
+    // Use move semantics for the return to avoid copy issues
+    return py::make_tuple(std::move(v1), std::move(v2));
 }
 
 // The dispatchers accept a Python sequence for the buffer and a required

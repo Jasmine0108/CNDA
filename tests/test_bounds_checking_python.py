@@ -122,7 +122,7 @@ class TestAtMethod:
         """Test .at() on single-element array."""
         arr = cnda.ContiguousND_float([1])
         arr[0] = 3.14
-        assert arr.at((0,)) == 3.14
+        assert abs(arr.at((0,)) - 3.14) < 1e-6  # Use approximate comparison for float
         
         with pytest.raises(IndexError, match=r"at\(\): index out of bounds"):
             arr.at((1,))
