@@ -19,7 +19,24 @@ void bind_contiguous_nd(py::module_ &m, const std::string &class_name) {
         .def("ndim", &ContiguousND<T>::ndim)
         .def("size", &ContiguousND<T>::size)
         .def("is_view", &ContiguousND<T>::is_view) // Whether this is a non-owning view
-        .def("index", (std::size_t (ContiguousND<T>::*)(const std::vector<std::size_t>&) const) &ContiguousND<T>::index)
+        // index() method - accepts a list/tuple and returns flat offset
+        .def("index", [](const ContiguousND<T>& self, const std::vector<std::size_t>& idxs) -> std::size_t {
+            const auto& sh = self.shape();
+            const auto& str = self.strides();
+            
+            if (idxs.size() != sh.size()) {
+                throw std::runtime_error("index: rank mismatch");
+            }
+            
+            std::size_t off = 0;
+            for (std::size_t a = 0; a < idxs.size(); ++a) {
+                if (idxs[a] >= sh[a]) {
+                    throw std::out_of_range("index: out of bounds");
+                }
+                off += idxs[a] * str[a];
+            }
+            return off;
+        })
         // Because python does not support pointer, we convert the data to vector
         .def("data", [](ContiguousND<T> &self) {
             return std::vector<T>(self.data(), self.data() + self.size());
