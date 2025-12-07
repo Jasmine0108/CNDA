@@ -1,10 +1,15 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>      // suport std::vector
 #include <cnda/contiguous_nd.hpp>  // include/cnda/
+// AoS types (Vec2f, Vec3f, Cell2D, ...)
+#include <cnda/aos_types.hpp>
+#include <cstddef>
+#include <cstdint>
 
 //py is the abbrivation of pybind11
 namespace py = pybind11;
 using namespace cnda;
+using namespace cnda::aos;
 
 // Use template to do binding for different types.
 // It helps to bind the C++ class ContiguousND<T> to a Python class.
@@ -42,7 +47,7 @@ void bind_contiguous_nd(py::module_ &m, const std::string &class_name) {
             return std::vector<T>(self.data(), self.data() + self.size());
         })
         // To allow type int, list and tuple as indices (support arbitrary ndim)
-        .def("__getitem__", [](ContiguousND<T>& self, py::object key) -> T {
+        .def("__getitem__", [](ContiguousND<T>& self, py::object key) -> T& {
             if (py::isinstance<py::int_>(key)) {
                 std::size_t i = key.cast<std::size_t>();
                 return self(i);
@@ -61,7 +66,7 @@ void bind_contiguous_nd(py::module_ &m, const std::string &class_name) {
             }
 
             throw std::runtime_error("Unsupported index type");
-        })
+        }, py::return_value_policy::reference_internal)
         .def("__setitem__", [](ContiguousND<T>& self, py::object key, T value) {
             if (py::isinstance<py::int_>(key)) {
                 self(key.cast<std::size_t>()) = value;
@@ -83,8 +88,32 @@ void bind_contiguous_nd(py::module_ &m, const std::string &class_name) {
             }
             throw std::runtime_error("Unsupported index type");
         })
+        // Expose raw pointer helpers (as integer addresses) so Python tests
+        // can perform byte-level offset checks against C++ expectations.
+        .def("data_ptr", [](ContiguousND<T> &self) -> std::uintptr_t {
+            return reinterpret_cast<std::uintptr_t>(self.data());
+        })
+        .def("element_ptr", [](ContiguousND<T> &self, py::object key) -> std::uintptr_t {
+            // Support int index or tuple/list of indices similar to __getitem__ / at
+            std::size_t off = 0;
+            if (py::isinstance<py::int_>(key)) {
+                off = key.cast<std::size_t>();
+            } else if (py::isinstance<py::tuple>(key) || py::isinstance<py::list>(key)) {
+                std::vector<std::size_t> idx = key.cast<std::vector<std::size_t>>();
+                const auto &sh = self.shape();
+                const auto &str = self.strides();
+                if (idx.size() != sh.size()) throw std::runtime_error("index: rank mismatch");
+                for (std::size_t a = 0; a < idx.size(); ++a) {
+                    if (idx[a] >= sh[a]) throw std::out_of_range("index: out of bounds");
+                    off += idx[a] * str[a];
+                }
+            } else {
+                throw std::runtime_error("Unsupported index type for element_ptr");
+            }
+            return reinterpret_cast<std::uintptr_t>(&self.data()[off]);
+        })
         // .at() method for bounds-checked access
-        .def("at", [](ContiguousND<T>& self, py::object key) -> T {
+        .def("at", [](ContiguousND<T>& self, py::object key) -> T& {
             if (py::isinstance<py::tuple>(key) || py::isinstance<py::list>(key)) {
                 // Try to cast as signed integers first to detect negative indices
                 std::vector<py::ssize_t> signed_idx;
@@ -122,7 +151,7 @@ void bind_contiguous_nd(py::module_ &m, const std::string &class_name) {
                 return self.data()[off];
             }
             throw py::index_error("at(): requires tuple or list of indices");
-        });
+        }, py::return_value_policy::reference_internal);
 }
 
 // Templated helpers
@@ -185,6 +214,66 @@ PYBIND11_MODULE(cnda, m) {
     bind_contiguous_nd<int64_t>(m, "ContiguousND_int64");
     bind_contiguous_nd<float>(m, "ContiguousND_float");
     bind_contiguous_nd<double>(m, "ContiguousND_double");
+    // Bind AoS structs from cnda::aos and expose ContiguousND specializations
+    py::class_<aos::Vec2f>(m, "Vec2f")
+        .def(py::init([](float x, float y){ return aos::Vec2f{x,y}; }), py::arg("x")=0.0f, py::arg("y")=0.0f)
+        .def_readwrite("x", &aos::Vec2f::x)
+        .def_readwrite("y", &aos::Vec2f::y);
+
+    py::class_<aos::Vec3f>(m, "Vec3f")
+        .def(py::init([](float x, float y, float z){ return aos::Vec3f{x,y,z}; }), py::arg("x")=0.0f, py::arg("y")=0.0f, py::arg("z")=0.0f)
+        .def_readwrite("x", &aos::Vec3f::x)
+        .def_readwrite("y", &aos::Vec3f::y)
+        .def_readwrite("z", &aos::Vec3f::z);
+
+    py::class_<aos::Cell2D>(m, "Cell2D")
+        .def(py::init([](float u, float v, int flag){ return aos::Cell2D{u,v,static_cast<std::int32_t>(flag)}; }), py::arg("u")=0.0f, py::arg("v")=0.0f, py::arg("flag")=0)
+        .def_readwrite("u", &aos::Cell2D::u)
+        .def_readwrite("v", &aos::Cell2D::v)
+        .def_readwrite("flag", &aos::Cell2D::flag);
+
+    py::class_<aos::Cell3D>(m, "Cell3D")
+        .def(py::init([](float u, float v, float w, int flag){ return aos::Cell3D{u,v,w,static_cast<std::int32_t>(flag)}; }), py::arg("u")=0.0f, py::arg("v")=0.0f, py::arg("w")=0.0f, py::arg("flag")=0)
+        .def_readwrite("u", &aos::Cell3D::u)
+        .def_readwrite("v", &aos::Cell3D::v)
+        .def_readwrite("w", &aos::Cell3D::w)
+        .def_readwrite("flag", &aos::Cell3D::flag);
+
+    py::class_<aos::Particle>(m, "Particle")
+        .def(py::init([](double x,double y,double z,double vx,double vy,double vz,double mass){ return aos::Particle{x,y,z,vx,vy,vz,mass}; }),
+             py::arg("x")=0.0, py::arg("y")=0.0, py::arg("z")=0.0, py::arg("vx")=0.0, py::arg("vy")=0.0, py::arg("vz")=0.0, py::arg("mass")=1.0)
+        .def_readwrite("x", &aos::Particle::x)
+        .def_readwrite("y", &aos::Particle::y)
+        .def_readwrite("z", &aos::Particle::z)
+        .def_readwrite("vx", &aos::Particle::vx)
+        .def_readwrite("vy", &aos::Particle::vy)
+        .def_readwrite("vz", &aos::Particle::vz)
+        .def_readwrite("mass", &aos::Particle::mass);
+
+    py::class_<aos::MaterialPoint>(m, "MaterialPoint")
+        .def(py::init([](float density,float temperature,float pressure,int id){ return aos::MaterialPoint{density,temperature,pressure,static_cast<std::int32_t>(id)}; }), py::arg("density")=0.0f, py::arg("temperature")=0.0f, py::arg("pressure")=0.0f, py::arg("id")=0)
+        .def_readwrite("density", &aos::MaterialPoint::density)
+        .def_readwrite("temperature", &aos::MaterialPoint::temperature)
+        .def_readwrite("pressure", &aos::MaterialPoint::pressure)
+        .def_readwrite("id", &aos::MaterialPoint::id);
+
+    // Expose ContiguousND specializations for AoS structs
+    bind_contiguous_nd<aos::Vec2f>(m, "ContiguousND_Vec2f");
+    bind_contiguous_nd<aos::Vec3f>(m, "ContiguousND_Vec3f");
+    bind_contiguous_nd<aos::Cell2D>(m, "ContiguousND_Cell2D");
+    bind_contiguous_nd<aos::Cell3D>(m, "ContiguousND_Cell3D");
+    bind_contiguous_nd<aos::Particle>(m, "ContiguousND_Particle");
+    bind_contiguous_nd<aos::MaterialPoint>(m, "ContiguousND_MaterialPoint");
+    // Expose sizeof helper for AoS types to Python tests
+    m.def("sizeof_aos", [](const std::string &name) -> std::size_t {
+        if (name == "Vec2f") return sizeof(aos::Vec2f);
+        if (name == "Vec3f") return sizeof(aos::Vec3f);
+        if (name == "Cell2D") return sizeof(aos::Cell2D);
+        if (name == "Cell3D") return sizeof(aos::Cell3D);
+        if (name == "Particle") return sizeof(aos::Particle);
+        if (name == "MaterialPoint") return sizeof(aos::MaterialPoint);
+        throw std::runtime_error("sizeof_aos: unknown AoS type '" + name + "'");
+    }, py::arg("name"));
     // Accept (shape, buf, dtype) where dtype is required and must be one of
     // "int32", "int64", "float", or "double".
     m.def("make_view", &make_view_dispatch, py::arg("shape"), py::arg("buf"), py::arg("dtype"));
